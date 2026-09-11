@@ -41,8 +41,9 @@ dependencies:
   flutter_secure_storage: 9.2.2
   cryptography: ^2.9.0
   whisper_ggml: ^2.6.0
-  sqlite3: ^3.5.2
+  sqlite3: 2.4.6
   path: ^1.9.1
+  sqlcipher_flutter_libs: 0.6.4
 
 dev_dependencies:
   flutter_test:

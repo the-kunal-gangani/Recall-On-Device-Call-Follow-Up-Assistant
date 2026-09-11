@@ -55,7 +55,7 @@ class TranscriptStore {
   }
 
   static Future<void> close() async {
-    _db?.close();
+    _db?.dispose();
     _db = null;
   }
 }

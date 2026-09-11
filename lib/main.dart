@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:recall/data/db/sqlcipher_init.dart';
 import 'services/call_watcher_service.dart';
 import 'core/permissions/storage_permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SqlCipherInit.ensureInitialized();
 
   await CallWatcherService.initialize();
 
