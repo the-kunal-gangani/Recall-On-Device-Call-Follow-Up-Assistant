@@ -1,8 +1,9 @@
 import 'dart:io';
-import 'package:recall/data/db/transcript_store.dart';
-
 import '../core/security/encrypted_queue.dart';
 import 'transcription_service.dart';
+import '../data/db/transcript_store.dart';
+import '../data/db/task_store.dart';
+import 'extraction_service.dart';
 
 class QueueProcessor {
   static Future<void> processPending() async {
@@ -21,10 +22,8 @@ class QueueProcessor {
       try {
         final transcript = await TranscriptionService.transcribe(path);
         if (transcript.isNotEmpty) {
-          await TranscriptStore.save(
-            recordingPath: path,
-            transcript: transcript,
-          );
+          await TranscriptStore.save(recordingPath: path, transcript: transcript);
+          await _extractAndSave(transcript);
         }
         await _purgeRecording(file);
         processed.add(path);
@@ -35,6 +34,22 @@ class QueueProcessor {
 
     if (processed.isNotEmpty) {
       await EncryptedQueue.removeAll(processed);
+    }
+  }
+
+  static Future<void> _extractAndSave(String transcript) async {
+    try {
+      final tasks = await ExtractionService.extract(transcript);
+      for (final task in tasks) {
+        await TaskStore.saveAll(
+          description: task.description,
+          deadlineMentioned: task.deadlineMentioned,
+          person: task.person,
+        );
+      }
+    } catch (e) {
+      // Extraction failure shouldn't block transcript being saved —
+      // transcript stays in TranscriptStore for a manual/retry pass later
     }
   }
 
