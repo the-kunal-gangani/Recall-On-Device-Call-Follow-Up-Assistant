@@ -22,7 +22,10 @@ class QueueProcessor {
       try {
         final transcript = await TranscriptionService.transcribe(path);
         if (transcript.isNotEmpty) {
-          await TranscriptStore.save(recordingPath: path, transcript: transcript);
+          await TranscriptStore.save(
+            recordingPath: path,
+            transcript: transcript,
+          );
           await _extractAndSave(transcript);
         }
         await _purgeRecording(file);

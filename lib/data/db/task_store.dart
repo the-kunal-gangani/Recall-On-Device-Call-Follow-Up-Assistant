@@ -31,6 +31,18 @@ class TaskStore {
     return db;
   }
 
+  static Future<void> updateStatus(int id, String status) async {
+    final db = await _database();
+    db.execute('UPDATE tasks SET status = ? WHERE id = ?', [status, id]);
+  }
+
+  static Future<Map<String, Object?>?> getById(int id) async {
+    final db = await _database();
+    final result = db.select('SELECT * FROM tasks WHERE id = ?', [id]);
+    if (result.isEmpty) return null;
+    return Map<String, Object?>.from(result.first);
+  }
+
   static Future<void> saveAll({
     required String description,
     String? deadlineMentioned,
@@ -39,7 +51,13 @@ class TaskStore {
     final db = await _database();
     db.execute(
       'INSERT INTO tasks (description, deadline_mentioned, person, status, created_at) VALUES (?, ?, ?, ?, ?)',
-      [description, deadlineMentioned, person, 'pending', DateTime.now().millisecondsSinceEpoch],
+      [
+        description,
+        deadlineMentioned,
+        person,
+        'pending',
+        DateTime.now().millisecondsSinceEpoch,
+      ],
     );
   }
 }
