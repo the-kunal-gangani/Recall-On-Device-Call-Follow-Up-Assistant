@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:recall/data/db/sqlcipher_init.dart';
+import 'package:recall/ui/lock_screen.dart';
 import 'services/call_watcher_service.dart';
 import 'services/reminder_service.dart';
 import 'core/permissions/storage_permission_handler.dart';
@@ -35,7 +36,7 @@ class RecallApp extends ConsumerWidget {
       title: 'Recall',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.teal),
-      home: const _PlaceholderHome(),
+      home: const LockScreen(child: _PlaceholderHome()),
     );
   }
 }

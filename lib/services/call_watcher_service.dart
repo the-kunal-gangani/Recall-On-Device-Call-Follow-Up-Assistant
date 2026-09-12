@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
+import '../core/security/encrypted_queue.dart';
 
 const String callWatchTaskName = 'com.recall.callWatchTask';
 const String _lastScanKey = 'last_call_scan_timestamp';
+const Duration _stabilityCheckDelay = Duration(seconds: 3);
+const int _minFileAgeSeconds = 10;
 
 Future<String?> _resolveCallRecordingsPath() async {
   final candidates = [
@@ -20,22 +22,65 @@ Future<String?> _resolveCallRecordingsPath() async {
   return null;
 }
 
+Future<bool> _isFileStable(File file) async {
+  try {
+    final sizeBefore = await file.length();
+    await Future.delayed(_stabilityCheckDelay);
+    if (!await file.exists()) return false;
+    final sizeAfter = await file.length();
+    return sizeBefore == sizeAfter && sizeAfter > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> _isOldEnough(File file) async {
+  try {
+    final stat = await file.stat();
+    final ageSeconds = DateTime.now().difference(stat.modified).inSeconds;
+    return ageSeconds >= _minFileAgeSeconds;
+  } catch (_) {
+    return false;
+  }
+}
+
 Future<List<File>> _findNewRecordings(int sinceMillis) async {
   final dirPath = await _resolveCallRecordingsPath();
-  if (dirPath == null) return [];
+  if (dirPath == null) {
+    // No recorder folder found — either recorder isn't set up, or this
+    // device uses a different path. Not an error state, just nothing to do.
+    return [];
+  }
 
   final dir = Directory(dirPath);
-  final files = await dir
-      .list()
-      .where((entity) => entity is File && entity.path.endsWith('.m4a'))
-      .cast<File>()
+  List<FileSystemEntity> entities;
+  try {
+    entities = await dir.list().toList();
+  } catch (_) {
+    // Folder briefly inaccessible (permission race, storage remount) —
+    // skip this cycle, try again next scan.
+    return [];
+  }
+
+  final candidateFiles = entities
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.m4a'))
       .toList();
 
   final newFiles = <File>[];
-  for (final file in files) {
-    final stat = await file.stat();
-    if (stat.modified.millisecondsSinceEpoch > sinceMillis) {
+  for (final file in candidateFiles) {
+    try {
+      final stat = await file.stat();
+      if (stat.modified.millisecondsSinceEpoch <= sinceMillis) continue;
+
+      // Skip files still being written by the recorder.
+      if (!await _isOldEnough(file)) continue;
+      if (!await _isFileStable(file)) continue;
+
       newFiles.add(file);
+    } catch (_) {
+      // Individual file failed to stat/read — skip it, don't fail the batch.
+      continue;
     }
   }
   return newFiles;
@@ -45,25 +90,26 @@ void callWatchCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     if (task != callWatchTaskName) return Future.value(true);
 
-    final prefs = await SharedPreferences.getInstance();
-    final lastScan = prefs.getInt(_lastScanKey) ?? 0;
-    final now = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastScan = prefs.getInt(_lastScanKey) ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
 
-    final newRecordings = await _findNewRecordings(lastScan);
+      final newRecordings = await _findNewRecordings(lastScan);
 
-    for (final recording in newRecordings) {
-      await _enqueueForProcessing(recording);
+      for (final recording in newRecordings) {
+        await EncryptedQueue.addPath(recording.path);
+      }
+
+      await prefs.setInt(_lastScanKey, now);
+    } catch (_) {
+      // Whole-task failure (permission revoked, storage unavailable) —
+      // WorkManager will retry on the next scheduled 15-minute cycle
+      // rather than crashing the background isolate.
     }
 
-    await prefs.setInt(_lastScanKey, now);
     return Future.value(true);
   });
-}
-
-Future<void> _enqueueForProcessing(File recording) async {
-  final appDir = await getApplicationDocumentsDirectory();
-  final queueFile = File('${appDir.path}/pending_queue.txt');
-  await queueFile.writeAsString('${recording.path}\n', mode: FileMode.append);
 }
 
 class CallWatcherService {
