@@ -4,6 +4,7 @@ import 'transcription_service.dart';
 import '../data/db/transcript_store.dart';
 import '../data/db/task_store.dart';
 import 'extraction_service.dart';
+import 'reminder_service.dart';
 
 class QueueProcessor {
   static Future<void> processPending() async {
@@ -40,21 +41,22 @@ class QueueProcessor {
     }
   }
 
-  static Future<void> _extractAndSave(String transcript) async {
-    try {
-      final tasks = await ExtractionService.extract(transcript);
-      for (final task in tasks) {
-        await TaskStore.saveAll(
-          description: task.description,
-          deadlineMentioned: task.deadlineMentioned,
-          person: task.person,
-        );
-      }
-    } catch (e) {
-      // Extraction failure shouldn't block transcript being saved —
-      // transcript stays in TranscriptStore for a manual/retry pass later
+static Future<void> _extractAndSave(String transcript) async {
+  try {
+    final tasks = await ExtractionService.extract(transcript);
+    for (final task in tasks) {
+      final id = await TaskStore.saveAll(
+        description: task.description,
+        deadlineMentioned: task.deadlineMentioned,
+        person: task.person,
+      );
+      await ReminderService.showConfirmPrompt(id, task.description);
     }
+  } catch (e) {
+    // Extraction failure shouldn't block transcript being saved —
+    // transcript stays in TranscriptStore for a manual/retry pass later
   }
+}
 
   static Future<void> _purgeRecording(File file) async {
     final length = await file.length();

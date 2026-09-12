@@ -43,21 +43,16 @@ class TaskStore {
     return Map<String, Object?>.from(result.first);
   }
 
-  static Future<void> saveAll({
-    required String description,
-    String? deadlineMentioned,
-    String? person,
-  }) async {
-    final db = await _database();
-    db.execute(
-      'INSERT INTO tasks (description, deadline_mentioned, person, status, created_at) VALUES (?, ?, ?, ?, ?)',
-      [
-        description,
-        deadlineMentioned,
-        person,
-        'pending',
-        DateTime.now().millisecondsSinceEpoch,
-      ],
-    );
-  }
+  static Future<int> saveAll({
+  required String description,
+  String? deadlineMentioned,
+  String? person,
+}) async {
+  final db = await _database();
+  db.execute(
+    'INSERT INTO tasks (description, deadline_mentioned, person, status, created_at) VALUES (?, ?, ?, ?, ?)',
+    [description, deadlineMentioned, person, 'pending', DateTime.now().millisecondsSinceEpoch],
+  );
+  return db.lastInsertRowId;
+}
 }

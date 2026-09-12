@@ -8,6 +8,7 @@ void main() async {
   SqlCipherInit.ensureInitialized();
 
   await CallWatcherService.initialize();
+  await ReminderService.initialize();
 
   final hasPermissions = await StoragePermissionHandler.hasAllPermissions();
   if (!hasPermissions) {
