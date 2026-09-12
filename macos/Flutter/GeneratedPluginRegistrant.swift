@@ -9,6 +9,7 @@ import ffmpeg_kit_flutter_new_min
 import flutter_gemma
 import flutter_local_notifications
 import flutter_secure_storage_macos
+import local_auth_darwin
 import shared_preferences_foundation
 import sqlcipher_flutter_libs
 import workmanager_apple
@@ -18,6 +19,7 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterGemmaPlugin.register(with: registry.registrar(forPlugin: "FlutterGemmaPlugin"))
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   FlutterSecureStoragePlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStoragePlugin"))
+  LocalAuthPlugin.register(with: registry.registrar(forPlugin: "LocalAuthPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
   Sqlite3FlutterLibsPlugin.register(with: registry.registrar(forPlugin: "Sqlite3FlutterLibsPlugin"))
   WorkmanagerPlugin.register(with: registry.registrar(forPlugin: "WorkmanagerPlugin"))
