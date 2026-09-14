@@ -1,12 +1,42 @@
 import 'dart:io';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:recall/core/permissions/storage_permission_handler.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/security/encrypted_queue.dart';
 
 const String callWatchTaskName = 'com.recall.callWatchTask';
 const String _lastScanKey = 'last_call_scan_timestamp';
+const String _lastPermissionWarningKey = 'last_permission_warning';
 const Duration _stabilityCheckDelay = Duration(seconds: 3);
 const int _minFileAgeSeconds = 10;
+const int _permissionWarningCooldownHours = 24;
+
+Future<void> _warnIfPermissionsMissing(SharedPreferences prefs) async {
+  final lastWarning = prefs.getInt(_lastPermissionWarningKey) ?? 0;
+  final now = DateTime.now().millisecondsSinceEpoch;
+  final hoursSinceWarning = (now - lastWarning) / (1000 * 60 * 60);
+
+  if (hoursSinceWarning < _permissionWarningCooldownHours) return;
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  const androidDetails = AndroidNotificationDetails(
+    'recall_permission_channel',
+    'Permission Alerts',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
+
+  await plugin.show(
+    id: 999999,
+    title: 'Recall needs permissions',
+    body:
+        'Storage or notification access was turned off — reopen Recall to fix this.',
+    notificationDetails: const NotificationDetails(android: androidDetails),
+  );
+
+  await prefs.setInt(_lastPermissionWarningKey, now);
+}
 
 Future<String?> _resolveCallRecordingsPath() async {
   final candidates = [
@@ -92,6 +122,13 @@ void callWatchCallbackDispatcher() {
 
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      final hasPermissions = await StoragePermissionHandler.hasAllPermissions();
+      if (!hasPermissions) {
+        await _warnIfPermissionsMissing(prefs);
+        return Future.value(true);
+      }
+
       final lastScan = prefs.getInt(_lastScanKey) ?? 0;
       final now = DateTime.now().millisecondsSinceEpoch;
 
@@ -103,9 +140,7 @@ void callWatchCallbackDispatcher() {
 
       await prefs.setInt(_lastScanKey, now);
     } catch (_) {
-      // Whole-task failure (permission revoked, storage unavailable) —
-      // WorkManager will retry on the next scheduled 15-minute cycle
-      // rather than crashing the background isolate.
+      // Whole-task failure — WorkManager retries on the next 15-minute cycle.
     }
 
     return Future.value(true);

@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:path_provider/path_provider.dart';
+import '../core/model/model_health.dart';
+import '../core/model/model_exceptions.dart';
 
 class ExtractedTask {
   final String description;
@@ -23,9 +26,31 @@ class ExtractedTask {
 
 class ExtractionService {
   static InferenceModel? _model;
+  static const _modelFileName = 'gemma-2b-it.task';
 
   static Future<void> initialize() async {
     if (_model != null) return;
+
+    final appDir = await getApplicationSupportDirectory();
+    final modelPath = '${appDir.path}/models/$_modelFileName';
+
+    try {
+      await ModelHealth.checkGemmaModel(modelPath);
+    } catch (e) {
+      final message = e.toString();
+      if (message.contains('missing:')) {
+        throw ModelMissingException(
+          'gemma',
+          'Gemma model not found. Run first-time setup to download it.',
+        );
+      } else {
+        throw ModelCorruptedException(
+          'gemma',
+          'Gemma model file appears corrupted or incomplete. Setup needs to run again.',
+        );
+      }
+    }
+
     _model = await FlutterGemmaPlugin.instance.createModel(
       modelType: ModelType.gemmaIt,
       maxTokens: 1024,
