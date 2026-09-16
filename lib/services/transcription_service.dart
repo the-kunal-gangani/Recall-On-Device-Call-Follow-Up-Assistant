@@ -1,24 +1,38 @@
 import 'dart:io';
 import 'package:whisper_ggml/whisper_ggml.dart';
 import 'package:path_provider/path_provider.dart';
+import '../core/model/model_exceptions.dart';
 
 class TranscriptionService {
   static WhisperController? _controller;
   static const _modelName = 'ggml-base.bin';
+  // Base model is roughly 140MB — anything much smaller means a partial download.
+  static const int _minExpectedBytes = 100 * 1024 * 1024;
 
   static Future<void> initialize() async {
     _controller ??= WhisperController();
-    await _ensureModelDownloaded();
+    await _ensureModelHealthy();
   }
 
-  static Future<void> _ensureModelDownloaded() async {
+  static Future<void> _ensureModelHealthy() async {
     final appDir = await getApplicationSupportDirectory();
     final modelFile = File('${appDir.path}/models/$_modelName');
 
     if (!await modelFile.exists()) {
-      throw StateError(
-        'Whisper model not bundled. Place $_modelName in assets/models/ '
-        'and copy it to ${modelFile.path} on first run.',
+      throw ModelMissingException(
+        'whisper',
+        'Whisper model not found. Run first-time setup to download it.',
+      );
+    }
+
+    final size = await modelFile.length();
+    if (size < _minExpectedBytes) {
+      try {
+        await modelFile.delete();
+      } catch (_) {}
+      throw ModelCorruptedException(
+        'whisper',
+        'Whisper model file appears corrupted or incomplete. Setup needs to run again.',
       );
     }
   }

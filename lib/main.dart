@@ -6,6 +6,7 @@ import 'services/call_watcher_service.dart';
 import 'services/reminder_service.dart';
 import 'core/permissions/storage_permission_handler.dart';
 import 'core/security/screen_security_provider.dart';
+import 'services/extraction_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +15,12 @@ void main() async {
 
   await CallWatcherService.initialize();
   await ReminderService.initialize();
+  try {
+    await ExtractionService.initialize();
+  } catch (_) {
+    // Model missing/corrupted — surfaced via notification from QueueProcessor
+    // on first actual extraction attempt instead of blocking app startup.
+  }
 
   final hasPermissions = await StoragePermissionHandler.hasAllPermissions();
   if (!hasPermissions) {

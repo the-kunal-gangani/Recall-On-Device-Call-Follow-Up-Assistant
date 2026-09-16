@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:recall/core/model/model_exceptions.dart';
+
 import '../core/security/encrypted_queue.dart';
 import 'transcription_service.dart';
 import '../data/db/transcript_store.dart';
@@ -31,6 +33,11 @@ class QueueProcessor {
         }
         await _purgeRecording(file);
         processed.add(path);
+      } on ModelMissingException catch (e) {
+        await _warnModelIssue(e.message);
+        // Don't mark as processed — retry once the model exists.
+      } on ModelCorruptedException catch (e) {
+        await _warnModelIssue(e.message);
       } catch (e) {
         continue;
       }
@@ -41,22 +48,22 @@ class QueueProcessor {
     }
   }
 
-static Future<void> _extractAndSave(String transcript) async {
-  try {
-    final tasks = await ExtractionService.extract(transcript);
-    for (final task in tasks) {
-      final id = await TaskStore.saveAll(
-        description: task.description,
-        deadlineMentioned: task.deadlineMentioned,
-        person: task.person,
-      );
-      await ReminderService.showConfirmPrompt(id, task.description);
+  static Future<void> _extractAndSave(String transcript) async {
+    try {
+      final tasks = await ExtractionService.extract(transcript);
+      for (final task in tasks) {
+        final id = await TaskStore.saveAll(
+          description: task.description,
+          deadlineMentioned: task.deadlineMentioned,
+          person: task.person,
+        );
+        await ReminderService.showConfirmPrompt(id, task.description);
+      }
+    } catch (e) {
+      // Extraction failure shouldn't block transcript being saved —
+      // transcript stays in TranscriptStore for a manual/retry pass later
     }
-  } catch (e) {
-    // Extraction failure shouldn't block transcript being saved —
-    // transcript stays in TranscriptStore for a manual/retry pass later
   }
-}
 
   static Future<void> _purgeRecording(File file) async {
     final length = await file.length();
