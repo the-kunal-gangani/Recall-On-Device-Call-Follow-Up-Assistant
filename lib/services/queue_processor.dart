@@ -7,8 +7,39 @@ import '../data/db/transcript_store.dart';
 import '../data/db/task_store.dart';
 import 'extraction_service.dart';
 import 'reminder_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class QueueProcessor {
+  static const _lastModelWarningKey = 'last_model_warning';
+  static const _modelWarningCooldownHours = 24;
+
+  static Future<void> _warnModelIssue(String message) async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastWarning = prefs.getInt(_lastModelWarningKey) ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final hoursSince = (now - lastWarning) / (1000 * 60 * 60);
+
+    if (hoursSince < _modelWarningCooldownHours) return;
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    const androidDetails = AndroidNotificationDetails(
+      'recall_permission_channel',
+      'Setup Alerts',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    await plugin.show(
+      id: 999998,
+      title: 'Recall setup needed',
+      body: message,
+      notificationDetails: const NotificationDetails(android: androidDetails),
+    );
+
+    await prefs.setInt(_lastModelWarningKey, now);
+  }
+
   static Future<void> processPending() async {
     final pendingPaths = await EncryptedQueue.readAll();
     if (pendingPaths.isEmpty) return;
