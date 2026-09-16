@@ -43,16 +43,42 @@ class TaskStore {
     return Map<String, Object?>.from(result.first);
   }
 
+  static Future<List<Map<String, Object?>>> getByStatus(String status) async {
+    final db = await _database();
+    final result = db.select(
+      'SELECT * FROM tasks WHERE status = ? ORDER BY created_at DESC',
+      [status],
+    );
+    return result.map((row) => Map<String, Object?>.from(row)).toList();
+  }
+
+  static Future<List<Map<String, Object?>>> getAll() async {
+    final db = await _database();
+    final result = db.select('SELECT * FROM tasks ORDER BY created_at DESC');
+    return result.map((row) => Map<String, Object?>.from(row)).toList();
+  }
+
+  static Future<void> delete(int id) async {
+    final db = await _database();
+    db.execute('DELETE FROM tasks WHERE id = ?', [id]);
+  }
+
   static Future<int> saveAll({
-  required String description,
-  String? deadlineMentioned,
-  String? person,
-}) async {
-  final db = await _database();
-  db.execute(
-    'INSERT INTO tasks (description, deadline_mentioned, person, status, created_at) VALUES (?, ?, ?, ?, ?)',
-    [description, deadlineMentioned, person, 'pending', DateTime.now().millisecondsSinceEpoch],
-  );
-  return db.lastInsertRowId;
-}
+    required String description,
+    String? deadlineMentioned,
+    String? person,
+  }) async {
+    final db = await _database();
+    db.execute(
+      'INSERT INTO tasks (description, deadline_mentioned, person, status, created_at) VALUES (?, ?, ?, ?, ?)',
+      [
+        description,
+        deadlineMentioned,
+        person,
+        'pending',
+        DateTime.now().millisecondsSinceEpoch,
+      ],
+    );
+    return db.lastInsertRowId;
+  }
 }
