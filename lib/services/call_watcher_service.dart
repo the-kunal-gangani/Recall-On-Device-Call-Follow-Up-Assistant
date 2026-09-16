@@ -1,6 +1,10 @@
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:recall/core/permissions/storage_permission_handler.dart';
+import 'package:recall/data/db/sqlcipher_init.dart';
+import 'package:recall/services/extraction_service.dart';
+import 'package:recall/services/queue_processor.dart';
+import 'package:recall/services/transcription_service.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/security/encrypted_queue.dart';
@@ -121,6 +125,21 @@ void callWatchCallbackDispatcher() {
     if (task != callWatchTaskName) return Future.value(true);
 
     try {
+      SqlCipherInit.ensureInitialized();
+
+      try {
+        await TranscriptionService.initialize();
+      } catch (_) {
+        // Missing/corrupted model handled inside processPending's own
+        // try/catch when it actually attempts transcription.
+      }
+
+      try {
+        await ExtractionService.initialize();
+      } catch (_) {
+        // Same — surfaced via processPending's model-issue notification.
+      }
+
       final prefs = await SharedPreferences.getInstance();
 
       final hasPermissions = await StoragePermissionHandler.hasAllPermissions();
@@ -139,6 +158,8 @@ void callWatchCallbackDispatcher() {
       }
 
       await prefs.setInt(_lastScanKey, now);
+
+      await QueueProcessor.processPending();
     } catch (_) {
       // Whole-task failure — WorkManager retries on the next 15-minute cycle.
     }
